@@ -20,6 +20,8 @@ void reconnect() {
     if (client.connect(ID)) {
       Serial.printf(" MQTT connected as %s\n", ID);
       client.subscribe("driveway/data");
+      client.subscribe("cat/purch");
+      client.subscribe("catfood/presence");
     } else {
       Serial.print("MQTT connect failed with state ");
       Serial.println(client.state());
@@ -38,13 +40,29 @@ void callback(char* topic, byte* payload, unsigned int length) {
   char displayText[50];
   char displayload[50];
   payload[length] = '\0';
- Serial.printf("%s:%s\n",topic,payload);
- if(strstr("driveway/data",topic) !=NULL){
-  startAlarm();
- }
- 
+  Serial.printf("%s:%s\n", topic, payload);
+  if (strstr("driveway/data", topic) != NULL) {
+    startAlarm();
+  }
+  if (strstr("cat/purch", topic) != NULL) {
+    if (strstr("IN", (char *)payload) != NULL)
+      staticLight(YELLOW , 1);
+    else
+      staticLight(YELLOW, 0);//must be "OUT"
+  }
+
+
+  if (strstr("catfood/presence", topic) != NULL) {
+    if (strstr("1", (char *)payload) != NULL)
+      staticLight(GREEN , 1);
+    else
+      staticLight(GREEN, 0);// must be "0"
+  }
 
 }
+
+
+
 
 void publish(const char *topic, const char *data) {
   if (!client.connected()) { // Reconnect if connection is lost

@@ -36,6 +36,16 @@ void blink(int color, int count, int ontime, int offtime) {
   pinMode(color, INPUT);
 }
 
+void staticLight(int color,bool state){
+  if(state == 1){
+      pinMode(color, OUTPUT);
+      digitalWrite(color,HIGH);
+  } else{
+        pinMode(color, INPUT);
+      digitalWrite(color,LOW);  
+  }
+}
+
 void    startAlarm() {
   drivewayAlarmStart = true;
   drivewayAlarming = true;
