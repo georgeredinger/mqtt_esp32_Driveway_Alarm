@@ -23,6 +23,10 @@ const char *ID = "drivewayStatus";  // Name of our device, must be unique
 #define UNDEF2 16
 #define UNDEF3 17
 #define UNDEF4 18
+const int freq = 5000;
+const int ledChannel = 0;
+const int resolution = 8;
+const int pins[] = {4, 5, 13, 14, 15, 16, 17, 18};
 
 bool drivewayAlarming = false;
 int alarmOnTime;
@@ -103,19 +107,8 @@ void IRAM_ATTR resetModule() {
 void setup() {
   int wakeup_reason;
   char wakeup_string[3];
-
-  pinMode(RED, OUTPUT);
-  pinMode(GREEN , OUTPUT);
-  pinMode( YELLOW , OUTPUT);
-  pinMode( UNDEF1 , OUTPUT);
-  pinMode( UNDEF2 , OUTPUT);
-  pinMode( UNDEF3 , OUTPUT);
-  pinMode( UNDEF4 , OUTPUT);
-
-  digitalWrite(RED, LOW);
-  digitalWrite(GREEN, LOW);
-  digitalWrite(YELLOW, LOW);
-  digitalWrite(BEEP, LOW);
+  ledcSetup(ledChannel, freq, resolution);
+  ledcAttachPin(16, 0);
 
   Serial.begin(115200); // Start serial communication at 115200 baud
   delay(1000);
@@ -136,7 +129,7 @@ void setup() {
   MDNS.addService("http", "tcp", 80);
   MDNS.addServiceTxt("http", "tcp", "prop1", "test");
   MDNS.addServiceTxt("http", "tcp", "prop2", "test2");
-    strcpy(webString,"nothing");
+  strcpy(webString, "nothing");
 
   server.on("/hello", HTTP_GET, [](AsyncWebServerRequest * request) {
     request->send(200, "text/plain", webString);
@@ -146,7 +139,7 @@ void setup() {
 }
 
 void loop() {
-    esp_task_wdt_reset();
+  esp_task_wdt_reset();
   //  if (!client.connected())
   //    reconnect();
   //  client.loop();
@@ -154,19 +147,41 @@ void loop() {
   //    startAlarm();
   //  }
   //  checkAlarm();
-  digitalWrite(  BEEP, HIGH);
-  digitalWrite( GREEN , HIGH);
-  digitalWrite( YELLOW, HIGH);
-  digitalWrite( RED , HIGH);
-  digitalWrite(UNDEF1, HIGH);
-  digitalWrite( UNDEF2, HIGH);
-  digitalWrite( UNDEF3 , HIGH);
-  digitalWrite( UNDEF4 , HIGH);
 
-  sprintf(webString,"%ld",millis()/1000);
-  delay(1000);
+  for (int i = 0; i < 8; i++) {
+    esp_task_wdt_reset();
+    if (pins[i] == 16) {
+      for (int j = 0; j <= 255; j++) {
+        ledcWrite(0, j);
+        delay(10);
+      }
+      for (int j = 255; j >= 0; j--) {
+        ledcWrite(0, j);
+        delay(10);
+      }
+    }
+    pinMode(pins[i], OUTPUT);
+    digitalWrite(pins[i], HIGH);
+    Serial.println(pins[i]);
+    esp_task_wdt_reset();
+    delay(1000);
+    esp_task_wdt_reset();
+    digitalWrite(pins[i], LOW);
+    pinMode(pins[i], INPUT);
+  }
+  //
+  //  pinMode(16, OUTPUT);
+  //  digitalWrite(16, HIGH);
+  //  Serial.println(16);
+  //  esp_task_wdt_reset();
+  //  delay(1000);
+  //  esp_task_wdt_reset();
+  //  digitalWrite(16, LOW);
+  //  pinMode(16, INPUT);
+  Serial.println();
+  sprintf(webString, "%ld", millis() / 1000);
+  //  delay(10000);
   Serial.println(webString);
-  digitalWrite(BEEP, LOW);
 
 
 }
