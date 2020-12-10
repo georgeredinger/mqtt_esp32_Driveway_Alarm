@@ -38,8 +38,14 @@ const int freq = 440;
 const int ledChannel = 0;
 const int resolution = 8;
 const int pins[] = {4, 5, 13, 14, 15, 16, 17, 18};
-QueueHandle_t queue;
+QueueHandle_t redQueue;
+QueueHandle_t yellowQueue;
+QueueHandle_t greenQueue;
+QueueHandle_t beepQueue;
+QueueHandle_t light0Queue;
+QueueHandle_t light1Queue;
 int queueSize = 10;
+
 bool drivewayAlarming = false;
 int alarmOnTime;
 int alarmCountDown;
@@ -152,7 +158,10 @@ void light1(void * parameter) {
 
 
 void red(void * parameter) {
+  int element;
   for (;;) { // infinite loop
+    xQueueReceive(redQueue, &element, portMAX_DELAY);//block till a 0 or 1 indicating red off or on
+
     cfade(cRed, 2500, 75);
     // Pause the task again for 500ms
     vTaskDelay(5000 / portTICK_PERIOD_MS);
@@ -170,7 +179,7 @@ void yellow(void * parameter) {
 void green(void * parameter) {
   int element;
   for (;;) { // infinite loop
-    xQueueReceive(queue, &element, portMAX_DELAY);
+    xQueueReceive(greenQueue, &element, portMAX_DELAY);
 
     ledcWrite(cGreen, element);
     vTaskDelay(element / portTICK_PERIOD_MS);
@@ -225,13 +234,30 @@ void setup() {
 
   Serial.begin(115200); // Start serial communication at 115200 baud
   delay(1000);
-  queue = xQueueCreate( queueSize, sizeof( int ) );
-
-  if (queue == NULL) {
-    Serial.println("Error creating the queue");
+  redQueue = xQueueCreate( queueSize, sizeof( int ) );
+  if (redQueue == NULL) {
+    Serial.println("Error creating the greenQueue");
   }
-
-
+  yellowQueue = xQueueCreate( queueSize, sizeof( int ) );
+  if (yellowQueue == NULL) {
+    Serial.println("Error creating the greenQueue");
+  }
+  greenQueue = xQueueCreate( queueSize, sizeof( int ) );
+  if (greenQueue == NULL) {
+    Serial.println("Error creating the greenQueue");
+  }
+  beepQueue = xQueueCreate( queueSize, sizeof( int ) );
+  if (beepQueue == NULL) {
+    Serial.println("Error creating the greenQueue");
+  }
+  light0Queue = xQueueCreate( queueSize, sizeof( int ) );
+  if (light0Queue == NULL) {
+    Serial.println("Error creating the greenQueue");
+  }
+  light1Queue = xQueueCreate( queueSize, sizeof( int ) );
+  if (light1Queue == NULL) {
+    Serial.println("Error creating the greenQueue");
+  }
 
 
   if (mdns_init() != ESP_OK) {
@@ -370,7 +396,7 @@ void loop() {
   esp_task_wdt_reset();
 
 
- 
+
 
   esp_task_wdt_reset();
   digitalWrite(BEEP, HIGH);
@@ -381,8 +407,8 @@ void loop() {
   sprintf(webString, "%ld", millis() / 1000);
   //  delay(10000);
   // / Serial.println(webString);
-  int m=millis()/100;
-      xQueueSend(queue, &m, portMAX_DELAY)
+  int m = millis() / 100;
+  xQueueSend(greenQueue, &m, portMAX_DELAY);
   ArduinoOTA.handle();
 
 }
