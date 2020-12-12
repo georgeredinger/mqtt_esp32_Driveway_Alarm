@@ -15,12 +15,20 @@ unsigned long alive;
 
 const char *ID = "drivewayStatus";  // Name of our device, must be unique
 
-const byte cLight0 = 0;
-const byte cLight1 = 1;
-const byte cBeep = 2;
-const byte cRed = 3;
-const byte cYellow = 4;
-const byte cGreen = 5;
+typedef struct  {
+  QueueHandle_t qHandle;
+  int cChannel;
+  int onTime;
+  int brightness;
+  char *name;
+} annunciatorParms;
+
+const int  cLight0 = 0;
+const int cLight1 = 1;
+const int cBeep = 2;
+const int cRed = 3;
+const int cYellow = 4;
+#define cGreen  5
 int beat;
 int pulser = 1;
 // 8 open collector outputs
@@ -31,9 +39,8 @@ int pulser = 1;
 #define YELLOW 18
 #define RED 16
 #define LIGHT0 15
-///#define UNDEF2 5
-///#define UNDEF3 17
 #define LIGHT1 4
+
 const int freq = 440;
 const int ledChannel = 0;
 const int resolution = 8;
@@ -53,54 +60,6 @@ bool drivewayAlarmStart = false;
 #define ALARM_ON_COUNT 10;
 AsyncWebServer server(80);
 char webString[50];
-void blink(int color, int count, int ontime, int offtime) {
-  int i;
-  //  for (i = 0; i < count; i++) {
-  //    pinMode(color, OUTPUT);
-  //    digitalWrite(color, HIGH);
-  //    delay(ontime);
-  //    pinMode(color, INPUT);// green LED circuit has a leakage bug such that driving low turns on a little
-  //    digitalWrite(color, LOW);
-  //    delay(offtime);
-  //  }
-  //  pinMode(color, INPUT);
-}
-
-void staticLight(int color, bool state) {
-  if (state == 1) {
-    pinMode(color, OUTPUT);
-    digitalWrite(color, HIGH);
-  } else {
-    pinMode(color, INPUT);
-    digitalWrite(color, LOW);
-  }
-}
-
-void    startAlarm() {
-  drivewayAlarmStart = true;
-  drivewayAlarming = true;
-  alarmCountDown = ALARM_ON_COUNT;
-}
-
-void checkAlarm() {
-  if (drivewayAlarming) {
-    if (drivewayAlarmStart) {
-      drivewayAlarmStart = false;
-    }
-    blink(RED, 3, 100, 500);
-    blink(YELLOW, 3, 100, 500);
-    blink(GREEN, 3, 100, 500);
-    delay(1000);
-    blink(BEEP, 5, 10, 200);
-    if (alarmCountDown <= 0) {
-      drivewayAlarming = false;
-      drivewayAlarmStart = false;
-    }
-    alarmCountDown--;
-
-
-  }
-}
 
 int print_wakeup_reason() {
   esp_sleep_wakeup_cause_t wakeup_reason;
@@ -121,88 +80,25 @@ void IRAM_ATTR resetModule() {
   esp_restart();
 }
 
-
-void cpulse(int cChannel, int duty, int t) {
-
-  ledcWrite(cChannel, duty);
-  delay(t);
-  ledcWrite(cChannel, 0);
-}
-
-void cfade(int cChannel, int duty, int t) {
-  int i;
-  for ( i = 0; i < duty; i += 50) {
-    esp_task_wdt_reset();
-    cpulse(cChannel, i, t);
-  }
-  for (i = duty; i > 0; i -= 50) {
-    esp_task_wdt_reset();
-    cpulse(cChannel, i, t);
-  }
-}
-
-void light0(void * parameter) {
+void indicate(void * parameter) {
+  int topPad;//seems to be a memory overwrite from xQueueReceive
+  int element = 0;
+  int bottomPad;//seems to be a memory overwrite from xQueueReceive
+  QueueHandle_t qHandle = ((annunciatorParms *)parameter)->qHandle;
+  int cChannel = ((annunciatorParms *)parameter)->cChannel;
+  int onTime = ((annunciatorParms *)parameter)->onTime;
+  int brightness = ((annunciatorParms *)parameter)->brightness;
+  char *name = ((annunciatorParms *)parameter)->name;
+  int bTime = 0;
   for (;;) { // infinite loop
-    cfade(cLight0, 1000, 100);
-    // Pause the task again for 500ms
-    vTaskDelay(500 / portTICK_PERIOD_MS);
+    xQueueReceive(qHandle, &element, portMAX_DELAY);
+    bTime = element * onTime;
+
+    ledcWrite(cChannel,  bTime);
+
+    Serial.printf("indicate: %s %d\r\n", name,bTime);
   }
 }
-void light1(void * parameter) {
-  for (;;) { // infinite loop
-    cfade(cLight1, 2500, 100);
-    // Pause the task again for 500ms
-    vTaskDelay(500 / portTICK_PERIOD_MS);
-  }
-}
-
-
-void red(void * parameter) {
-  int element;
-  for (;;) { // infinite loop
-    xQueueReceive(redQueue, &element, portMAX_DELAY);//block till a 0 or 1 indicating red off or on
-
-    cfade(cRed, 2500, 75);
-    // Pause the task again for 500ms
-    vTaskDelay(5000 / portTICK_PERIOD_MS);
-  }
-}
-
-void yellow(void * parameter) {
-  for (;;) { // infinite loop
-    cfade(cYellow, 2500, 55);
-    // Pause the task again for 500ms
-    vTaskDelay(500 / portTICK_PERIOD_MS);
-  }
-}
-
-void green(void * parameter) {
-  int element;
-  for (;;) { // infinite loop
-    xQueueReceive(greenQueue, &element, portMAX_DELAY);
-
-    ledcWrite(cGreen, element);
-    vTaskDelay(element / portTICK_PERIOD_MS);
-    ledcWrite(cGreen, 0 );
-
-    // Pause the task again for 500ms
-    vTaskDelay(1000 / portTICK_PERIOD_MS);
-  }
-}
-
-void beep(void * parameter) {
-  for (;;) { // infinite loop
-    // cfade(cBeep, 1300, 50);
-    ledcWrite(cBeep, 255);
-    vTaskDelay(100 / portTICK_PERIOD_MS);
-    ledcWrite(cBeep, 0);
-
-    // Pause the task again for 500ms
-
-    vTaskDelay(10000 / portTICK_PERIOD_MS);
-  }
-}
-
 
 void setup() {
   int wakeup_reason;
@@ -215,13 +111,16 @@ void setup() {
   pinMode(LIGHT0 , OUTPUT);
   pinMode( LIGHT1 , OUTPUT);
 
-  ledcSetup(cLight0, 1000, 16);
-  ledcAttachPin(LIGHT0, 0);
-  ledcSetup(cLight1, 1000, 16);
 
-  ledcAttachPin(LIGHT1, 1);
+
+  ledcSetup(cLight0, 1000, 16);
+  ledcAttachPin(LIGHT0, cLight0);
+
+  ledcSetup(cLight1, 1000, 16);
+  ledcAttachPin(LIGHT1, cLight1);
+
   ledcAttachPin(BEEP, cBeep);
-  ledcSetup(cBeep, 440, 8);
+  ledcSetup(cBeep, 440, 16);
 
   ledcSetup(cRed  , 1000, 16);
   ledcAttachPin(RED, cRed);
@@ -236,13 +135,13 @@ void setup() {
   delay(1000);
   redQueue = xQueueCreate( queueSize, sizeof( int ) );
   if (redQueue == NULL) {
-    Serial.println("Error creating the greenQueue");
+    Serial.println("Error creating the redQueue");
   }
   yellowQueue = xQueueCreate( queueSize, sizeof( int ) );
   if (yellowQueue == NULL) {
-    Serial.println("Error creating the greenQueue");
+    Serial.println("Error creating the yellowQueue");
   }
-  greenQueue = xQueueCreate( queueSize, sizeof( int ) );
+  greenQueue = xQueueCreate( queueSize, sizeof( int ));
   if (greenQueue == NULL) {
     Serial.println("Error creating the greenQueue");
   }
@@ -259,6 +158,7 @@ void setup() {
     Serial.println("Error creating the greenQueue");
   }
 
+  Serial.printf("QueueHandle_t size = %d\r\n", sizeof(QueueHandle_t));
 
   if (mdns_init() != ESP_OK) {
     Serial.println("mDNS failed to start");
@@ -269,6 +169,7 @@ void setup() {
     Serial.println("Error starting mDNS");
     return;
   }
+
   wakeup_reason = print_wakeup_reason();
   sprintf(wakeup_string, "%1d", wakeup_reason);
   esp_task_wdt_init(WDT_TIMEOUT, true); //enable panic so ESP32 restarts
@@ -307,65 +208,103 @@ void setup() {
   Serial.println("Ready");
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
-  MDNS.addService("http", "tcp", 80);
-  MDNS.addServiceTxt("http", "tcp", "prop1", "test");
-  MDNS.addServiceTxt("http", "tcp", "prop2", "test2");
-  strcpy(webString, "nothing");
 
-  server.on("/hello", HTTP_GET, [](AsyncWebServerRequest * request) {
-    request->send(200, "text/plain", webString);
-  });
-  server.begin();
 
-  xTaskCreate(
-    light0,    // Function that should be called
-    "light0",   // Name of the task (for debugging)
-    1000,            // Stack size (bytes)
-    NULL,            // Parameter to pass
-    1,               // Task priority
-    NULL             // Task handle
-  );
+  //channel,ontime,brightness
+
+  annunciatorParms redParms;
+  redParms.qHandle = redQueue;
+  redParms.cChannel = cRed;
+  redParms.onTime = 1234;
+  redParms.brightness = 11234;
+  redParms.name = "red";
 
   xTaskCreate(
-    light1,    // Function that should be called
-    "light1",   // Name of the task (for debugging)
-    1000,            // Stack size (bytes)
-    NULL,            // Parameter to pass
-    1,               // Task priority
-    NULL             // Task handle
-  );
-  xTaskCreate(
-    red,    // Function that should be called
+    indicate,    // Function that should be called
     "red",   // Name of the task (for debugging)
     1000,            // Stack size (bytes)
-    NULL,            // Parameter to pass
+    (void *)&redParms,            // Parameter to pass
     1,               // Task priority
     NULL             // Task handle
   );
 
-  xTaskCreate(
-    yellow,    // Function that should be called
-    "yellow",   // Name of the task (for debugging)
-    1000,            // Stack size (bytes)
-    NULL,            // Parameter to pass
-    1,               // Task priority
-    NULL             // Task handle
-  );
+  annunciatorParms yellowParms;
+  yellowParms.qHandle = yellowQueue;
+  yellowParms.cChannel = cYellow;
+  yellowParms.onTime = 1234;
+  yellowParms.brightness = 21034;
+  yellowParms.name = "yellow";
 
+                     xTaskCreate(
+                       indicate,    // Function that should be called
+                       "yellow",   // Name of the task (for debugging)
+                       1000,            // Stack size (bytes)
+                       (void *)&yellowParms,            // Parameter to pass
+                       1,               // Task priority
+                       NULL             // Task handle
+                     );
+
+
+
+  annunciatorParms greenParms;
+  greenParms.qHandle = greenQueue;
+  greenParms.cChannel = cGreen;
+  greenParms.onTime = 1234;
+  greenParms.brightness = 22234;
+  greenParms.name = "green";
   xTaskCreate(
-    green,    // Function that should be called
+    indicate,    // Function that should be called
     "green",   // Name of the task (for debugging)
     1000,            // Stack size (bytes)
-    NULL,            // Parameter to pass
+    (void *)&greenParms,            // Parameter to pass
     1,               // Task priority
     NULL             // Task handle
   );
 
+
+  annunciatorParms beepParms;
+  beepParms.qHandle = beepQueue;
+  beepParms.cChannel = cBeep;
+  beepParms.onTime = 1234;
+  beepParms.brightness = 2314;
+  beepParms.name = "beep";
   xTaskCreate(
-    beep,    // Function that should be called
+    indicate,    // Function that should be called
     "beep",   // Name of the task (for debugging)
     1000,            // Stack size (bytes)
-    NULL,            // Parameter to pass
+    (void *)&beepParms,            // Parameter to pass
+    1,               // Task priority
+    NULL             // Task handle
+  );
+  //
+
+  annunciatorParms light0Parms;
+  light0Parms.qHandle = light0Queue;
+  light0Parms.cChannel = cLight0;
+  light0Parms.onTime = 1234;
+  light0Parms.brightness = 2134;
+  light0Parms.name = "light0";
+  xTaskCreate(
+    indicate,    // Function that should be called
+    "light0",   // Name of the task (for debugging)
+    1000,            // Stack size (bytes)
+    (void *)&light0Parms,            // Parameter to pass
+    1,               // Task priority
+    NULL             // Task handle
+  );
+
+
+  annunciatorParms light1Parms;
+  light1Parms.qHandle = light1Queue;
+  light1Parms.cChannel = cLight1;
+  light1Parms.onTime = 1234;
+  light1Parms.brightness = 1234;
+  light1Parms.name = "light1";
+  xTaskCreate(
+    indicate,    // Function that should be called
+    "light1",   // Name of the task (for debugging)
+    1000,            // Stack size (bytes)
+    (void *)&light1Parms,            // Parameter to pass
     1,               // Task priority
     NULL             // Task handle
   );
@@ -373,42 +312,35 @@ void setup() {
   Serial.println("setup");
 }
 
+int m;
+int ticker = 0;
+int timer = 2000;
+bool offIt = false;
 void loop() {
   esp_task_wdt_reset();
-  //  if (!client.connected())
-  //    reconnect();
-  //  client.loop();
-  //  if (millis() % 60000*3 ==0) {
-  //    startAlarm();
+  if (!client.connected())
+    reconnect();
+  client.loop();
+
+
+  //  if (millis() > timer) {
+  //    m = 1;
+  //    timer = millis() + 5000;
+  //    xQueueSend(greenQueue, &m, portMAX_DELAY);
+  //    offIt = true;
   //  }
-  //  checkAlarm();
-
-  // /    esp_task_wdt_reset();
-  //  delay(10);
-  //  cfade(cRed, 10000, 1) ;
-  //  cfade(cYellow, 5000, 1);
-  //  esp_task_wdt_reset();
-  //  //  delay(1000);
-  //  cfade(cGreen, 2500, 1);
-  //  //delay(1000);
-  //  //  /ledcWrite(2, 1100);//beep
-
-  esp_task_wdt_reset();
+  //  if (millis() > timer / 2) {
+  //    m = 0;
+  //    if (offIt) {
+  //      xQueueSend(greenQueue, &m, portMAX_DELAY);
+  //      offIt = false;
+  //    }
+  //  }
 
 
+  ticker++;
 
-
-  esp_task_wdt_reset();
-  digitalWrite(BEEP, HIGH);
-  delay(100);
-  digitalWrite(BEEP, LOW);
-  delay(100);
-  Serial.println();
-  sprintf(webString, "%ld", millis() / 1000);
-  //  delay(10000);
-  // / Serial.println(webString);
-  int m = millis() / 100;
-  xQueueSend(greenQueue, &m, portMAX_DELAY);
   ArduinoOTA.handle();
+
 
 }
