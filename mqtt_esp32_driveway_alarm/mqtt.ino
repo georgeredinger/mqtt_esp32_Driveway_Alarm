@@ -39,7 +39,6 @@ void reconnect() {
 }
 
 
-extern QueueHandle_t greenQueue;
 
 typedef struct  {
   char *name;
@@ -56,18 +55,18 @@ void callback(char* topic, byte* payload, unsigned int length) {
   char displayload[50];
   payload[length] = '\0';
   notices nots[] = {  //queues not created till setup() is complete
-    {"hotwater", redQueue},
-    {"cat", yellowQueue},
-    {"catfood", greenQueue},
-    {"driveway", beepQueue},
-    {"pump", light0Queue}
+    {"hotwater/", redQueue},
+    {"cat/", yellowQueue},
+    {"catfood/", greenQueue},
+    {"driveway/", beepQueue},
+    {"pump/", light0Queue},
+    {"fence/", light1Queue}
   };
   Serial.printf("callback: %s %s\r\n", topic, (char *) payload);
-
   if ((strstr(topic, "data") != 0 ) || (strstr(topic, "power") != 0)) {
-
-    for (i = 0; i < 5; i++) {
+    for (i = 0; i < 6; i++) {
       if (strstr(topic, nots[i].name)) {
+        Serial.printf("nots[i].name topic match %s %s\r\n",nots[i].name ,topic);
        if (isdigit(payload[0])) {
           m = ((char )payload[0] == '1') ? 1 : 0;
         } else {
@@ -87,12 +86,10 @@ void publish(const char *topic, const char *data) {
   client.loop();
   client.publish(topic, data);
   Serial.printf("%s %s\n", topic , data);
-
 }
 
 void setup_mqtt() {
   setup_wifi(); // Connect to network
   client.setServer(broker, 1883);
   client.setCallback(callback);
-
 }

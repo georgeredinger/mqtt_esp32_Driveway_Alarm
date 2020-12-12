@@ -20,6 +20,7 @@ typedef struct  {
   int cChannel;
   int onTime;
   int brightness;
+  int blink;
   char *name;
 } annunciatorParms;
 
@@ -88,15 +89,24 @@ void indicate(void * parameter) {
   int cChannel = ((annunciatorParms *)parameter)->cChannel;
   int onTime = ((annunciatorParms *)parameter)->onTime;
   int brightness = ((annunciatorParms *)parameter)->brightness;
+  int blink = ((annunciatorParms *)parameter)->blink;
   char *name = ((annunciatorParms *)parameter)->name;
   int bTime = 0;
   for (;;) { // infinite loop
     xQueueReceive(qHandle, &element, portMAX_DELAY);
     bTime = element * onTime;
 
-    ledcWrite(cChannel,  bTime);
-
-    Serial.printf("indicate: %s %d\r\n", name,bTime);
+    if (blink == 0) {
+      ledcWrite(cChannel,  bTime);
+    } else {
+      for (int i = 0; i < blink; i++) {
+        ledcWrite(cChannel,  bTime);
+        vTaskDelay(100 / portTICK_PERIOD_MS);
+        ledcWrite(cChannel,  0);
+        vTaskDelay(100 / portTICK_PERIOD_MS);
+      }
+    }
+    //  Serial.printf("indicate: %s %d\r\n", name, bTime);
   }
 }
 
@@ -217,6 +227,7 @@ void setup() {
   redParms.cChannel = cRed;
   redParms.onTime = 1234;
   redParms.brightness = 11234;
+  redParms.blink = 0;
   redParms.name = "red";
 
   xTaskCreate(
@@ -233,16 +244,17 @@ void setup() {
   yellowParms.cChannel = cYellow;
   yellowParms.onTime = 1234;
   yellowParms.brightness = 21034;
+  yellowParms.blink = 0;
   yellowParms.name = "yellow";
 
-                     xTaskCreate(
-                       indicate,    // Function that should be called
-                       "yellow",   // Name of the task (for debugging)
-                       1000,            // Stack size (bytes)
-                       (void *)&yellowParms,            // Parameter to pass
-                       1,               // Task priority
-                       NULL             // Task handle
-                     );
+  xTaskCreate(
+    indicate,    // Function that should be called
+    "yellow",   // Name of the task (for debugging)
+    1000,            // Stack size (bytes)
+    (void *)&yellowParms,            // Parameter to pass
+    1,               // Task priority
+    NULL             // Task handle
+  );
 
 
 
@@ -251,6 +263,7 @@ void setup() {
   greenParms.cChannel = cGreen;
   greenParms.onTime = 1234;
   greenParms.brightness = 22234;
+  greenParms.blink = 0;
   greenParms.name = "green";
   xTaskCreate(
     indicate,    // Function that should be called
@@ -267,6 +280,7 @@ void setup() {
   beepParms.cChannel = cBeep;
   beepParms.onTime = 1234;
   beepParms.brightness = 2314;
+  beepParms.blink = 10;
   beepParms.name = "beep";
   xTaskCreate(
     indicate,    // Function that should be called
@@ -283,6 +297,7 @@ void setup() {
   light0Parms.cChannel = cLight0;
   light0Parms.onTime = 1234;
   light0Parms.brightness = 2134;
+  light0Parms.blink = 0;
   light0Parms.name = "light0";
   xTaskCreate(
     indicate,    // Function that should be called
@@ -299,6 +314,7 @@ void setup() {
   light1Parms.cChannel = cLight1;
   light1Parms.onTime = 1234;
   light1Parms.brightness = 1234;
+  light1Parms.blink = 0;
   light1Parms.name = "light1";
   xTaskCreate(
     indicate,    // Function that should be called
@@ -312,35 +328,12 @@ void setup() {
   Serial.println("setup");
 }
 
-int m;
-int ticker = 0;
-int timer = 2000;
-bool offIt = false;
+
+
 void loop() {
   esp_task_wdt_reset();
   if (!client.connected())
     reconnect();
   client.loop();
-
-
-  //  if (millis() > timer) {
-  //    m = 1;
-  //    timer = millis() + 5000;
-  //    xQueueSend(greenQueue, &m, portMAX_DELAY);
-  //    offIt = true;
-  //  }
-  //  if (millis() > timer / 2) {
-  //    m = 0;
-  //    if (offIt) {
-  //      xQueueSend(greenQueue, &m, portMAX_DELAY);
-  //      offIt = false;
-  //    }
-  //  }
-
-
-  ticker++;
-
   ArduinoOTA.handle();
-
-
 }
