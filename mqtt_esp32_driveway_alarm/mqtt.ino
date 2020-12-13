@@ -63,7 +63,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
     {"fence/", light1Queue}
   };
   Serial.printf("callback: %s %s\r\n", topic, (char *) payload);
-  if ((strstr(topic, "data") != 0 ) || (strstr(topic, "power") != 0)) {
+  if ((strstr(topic, "data") != 0 ) || (strstr(topic, "power") != 0)|| (strstr(topic, "purch") != 0)) {
     for (i = 0; i < 6; i++) {
       if (strstr(topic, nots[i].name)) {
         Serial.printf("nots[i].name topic match %s %s\r\n",nots[i].name ,topic);
