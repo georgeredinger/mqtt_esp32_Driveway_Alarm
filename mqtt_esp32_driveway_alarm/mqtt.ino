@@ -45,40 +45,50 @@ typedef struct  {
   QueueHandle_t Q;
 } notices;
 
-
+typedef struct {
+  char *name;
+  int state;
+} states;
 
 void callback(char* topic, byte* payload, unsigned int length) {
-  int i;
+  int i, j;
   int m;
   double number;
   char displayText[50];
   char displayload[50];
   payload[length] = '\0';
   notices nots[] = {  //queues not created till setup() is complete
-    {"hotwater/", redQueue},
-    {"cat/", yellowQueue},
-    {"catfood/", greenQueue},
-    {"driveway/", beepQueue},
-    {"pump/", light0Queue},
-    {"fence/", light1Queue}
+    {"hotwater/power", redQueue},
+    {"cat/purch", yellowQueue},
+    {"catfood/presence", greenQueue},
+    {"driveway/data", beepQueue},
+    {"pump/power", light0Queue},
+    {"fence/data", light1Queue},
+    {"THEEND", light1Queue}
   };
+  states  state[] = {
+    {"IN", 1},
+    {"OUT", 0},
+    {"ON", 1},
+    {"OFF", 0},
+    {"1", 1},
+    {"0", 0},
+    {"THEEND", 0}
+  };
+
   Serial.printf("callback: %s %s\r\n", topic, (char *) payload);
-  if ((strstr(topic, "data") != 0 ) || (strstr(topic, "power") != 0)|| (strstr(topic, "purch") != 0)) {
-    for (i = 0; i < 6; i++) {
-      if (strstr(topic, nots[i].name)) {
-        Serial.printf("nots[i].name topic match %s %s\r\n",nots[i].name ,topic);
-       if (isdigit(payload[0])) {
-          m = ((char )payload[0] == '1') ? 1 : 0;
-        } else {
-          m = (strstr((char *)payload, "ON") != NULL) ? 1 : 0;
+  for (i = 0; i < 6; i++) {
+    if (strstr(topic, nots[i].name) != NULL) {
+      Serial.printf("nots[i].name topic match %s %s\r\n", nots[i].name , topic);
+      for (j = 0; j < 6; j++) {
+        if (strstr((char *)payload, state[j].name) != NULL ) {
+          xQueueSend(nots[i].Q, &state[j].state, portMAX_DELAY);
         }
-        xQueueSend(nots[i].Q, &m, portMAX_DELAY);
         break;
       }
     }
   }
 }
-
 void publish(const char *topic, const char *data) {
   if (!client.connected()) { // Reconnect if connection is lost
     reconnect();
